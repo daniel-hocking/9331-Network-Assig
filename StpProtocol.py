@@ -41,21 +41,27 @@ class StpProtocol:
         flags = self._encode_flags(syn, ack, fin)
         print(f'Creating datagram seq {self.sequence_num} and ack {self.ack_number}')
         header = pack(self.header_format, self._ip_to_int(self.source_ip), self._ip_to_int(self.dest_ip), self.source_port,
-                      self.dest_port, self.sequence_num, self.ack_number, datagram_size, datagram_size, flags)
+                      self.dest_port, self.sequence_num, self.ack_number, datagram_size, 0, flags)
+        pseudo_datagram = header + data
+        if self._find_checksum(pseudo_datagram):
+            header = pack(self.header_format, self._ip_to_int(self.source_ip), self._ip_to_int(self.dest_ip),
+                          self.source_port, self.dest_port, self.sequence_num, self.ack_number, datagram_size, 3, flags)
         return header + data
 
     def process_datagram(self, datagram):
         header = datagram[:self.header_size:]
         data = datagram[self.header_size::]
         header = unpack(self.header_format, header)
+        valid_datagram = self._verify_checksum(datagram, header[-2])
         flags = self._decode_flags(header[-1])
         ack_inc = 1 if flags[0] or flags[1] or flags[2] else 0
         header = header[:-1:] + flags
-        self.dest_port = header[2]
-        self.dest_ip = self._int_to_ip(header[1])
+        if not self.dest_port:
+            self.dest_port = header[2]
+            self.dest_ip = self._int_to_ip(header[1])
         self.sequence_num = header[5]
         self.ack_number = header[4] + ack_inc + len(data)
-        return (header, data)
+        return (header, data, valid_datagram)
 
     def _ip_to_int(self, ip_str):
         ip_str = '127.0.0.1' if ip_str == 'localhost' else ip_str
@@ -76,3 +82,22 @@ class StpProtocol:
         ack = True if flags & 2 else False
         fin = True if flags & 4 else False
         return syn, ack, fin
+
+    def _byte_parity(self, b):
+        parity = False
+        while b:
+            parity = not parity
+            b &= b - 1
+        return int(parity)
+
+    def _find_checksum(self, datagram):
+        count = 0
+        for b in datagram:
+            count += 1 + self._byte_parity(b)
+        return count % 2
+
+    def _verify_checksum(self, datagram, checksum):
+        calc_checksum = self._find_checksum(datagram)
+        if (calc_checksum and checksum) or (not calc_checksum and not checksum):
+            return True
+        return False

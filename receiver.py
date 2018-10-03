@@ -20,7 +20,7 @@ count = 0
 while True:
     segment = stp_protocol.receive_datagram()
     segment_process = stp_protocol.process_datagram(segment)
-    print(f'received ack {segment_process[0]}')
+    print(f'received ack {segment_process[0]} checksum {segment_process[2]}')
     if segment_process[1] == b'done':
         break
     stp_segment.write_segment(segment_process[1])
