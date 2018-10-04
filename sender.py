@@ -1,7 +1,6 @@
 #!/usr/bin/python3.6
 
 import sys
-from StpSegment import StpSegment
 from StpProtocol import StpProtocol
 
 num_args = len(sys.argv)
@@ -25,9 +24,26 @@ p_delay = float(sys.argv[12]) if num_args >= 13 else 0.1
 max_delay = int(sys.argv[13]) if num_args >= 14 else 250
 seed_val = int(sys.argv[14]) if num_args >= 15 else 300
 
+input_args = {
+    'receiver_host': receiver_host,
+    'receiver_port': receiver_port,
+    'filename': filename,
+    'max_window_size': max_window_size,
+    'max_seg_size': max_seg_size,
+    'gamma': gamma,
+    'p_drop': p_drop,
+    'p_dupe': p_dupe,
+    'p_corrupt': p_corrupt,
+    'p_order': p_order,
+    'max_order': max_order,
+    'p_delay': p_delay,
+    'max_delay': max_delay,
+    'seed_val': seed_val,
+}
+
 count = 0
 stp_segment = StpSegment(filename, max_seg_size)
-stp_protocol = StpProtocol(dest_ip = receiver_host, dest_port = receiver_port)
+stp_protocol = StpProtocol(dest_ip=receiver_host, dest_port=receiver_port, input_args=input_args)
 
 while True:
     segment_data = stp_segment.read_segment()

@@ -5,7 +5,7 @@ import math
 
 class StpSegment:
 
-    def __init__(self, filename, max_seg_size, mode = 'read'):
+    def __init__(self, filename, max_seg_size, mode='read'):
         self.file_name = filename
         self.max_seg_size = max_seg_size
         self.write_mode = True if mode == 'write' else False

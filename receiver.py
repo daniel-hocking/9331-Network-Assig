@@ -1,7 +1,6 @@
 #!/usr/bin/python3.6
 
 import sys
-from StpSegment import StpSegment
 from StpProtocol import StpProtocol
 
 if len(sys.argv) != 3:
@@ -14,7 +13,7 @@ filename = sys.argv[2]
 max_seg_size = 500
 
 stp_segment = StpSegment(filename, max_seg_size, 'write')
-stp_protocol = StpProtocol(source_port = receiver_port, sender = False)
+stp_protocol = StpProtocol(source_port=receiver_port, sender=False)
 
 count = 0
 while True:
