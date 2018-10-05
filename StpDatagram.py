@@ -7,12 +7,12 @@ class StpDatagram:
 
     header_format = 'IIHHIIIHHH'
 
-    def __init__(self, protocol, datagram=None, data=None, mws=None,
+    def __init__(self, protocol, datagram=None, data=None, mws=0,
                  syn=False, ack=False, fin=False, resend=False):
         self.header_size = calcsize(self.header_format)
         self.protocol = protocol
         if datagram:
-            self.datagram = data
+            self.datagram = datagram
             self._process_datagram()
         else:
             self.data = data
@@ -21,17 +21,33 @@ class StpDatagram:
             self.ack = ack
             self.fin = fin
             self.resend = resend
-            self._create_datagram()
+            self.sequence_num = self.protocol.sequence_num
+            self.ack_number = self.protocol.ack_number
+            self.datagram = self._create_datagram()
 
     def _create_datagram(self):
         self.datagram_size = self.header_size + len(self.data)
         flags = self._encode_flags(self.syn, self.ack, self.fin)
-        print(f'Creating datagram seq {self.protocol.sequence_num} and ack {self.protocol.ack_number}')
-        self.header = self._get_packed_header(0, flags)
-        pseudo_datagram = self.header + self.data
+        print(f'Creating datagram seq {self.sequence_num} and ack {self.ack_number}')
+        checksum = 0
+        header = self._get_packed_header(checksum, flags)
+        pseudo_datagram = header + self.data
         if self._find_checksum(pseudo_datagram):
-            self.header = self._get_packed_header(3, flags)
-        return self.header + self.data
+            checksum = 3
+            header = self._get_packed_header(checksum, flags)
+        self.header = {
+            'source_ip': self.protocol.source_ip,
+            'dest_ip': self.protocol.dest_ip,
+            'source_port': self.protocol.source_port,
+            'dest_port': self.protocol.dest_port,
+            'seq_number': self.sequence_num,
+            'ack_number': self.ack_number,
+            'mws': self.mws,
+            'datagram_size': self.datagram_size,
+            'checksum': checksum,
+            'flags': flags,
+        }
+        return header + self.data
 
     def _process_datagram(self):
         header = self.datagram[:self.header_size:]
@@ -59,11 +75,14 @@ class StpDatagram:
         self.protocol.update_nums(header[5], header[4] + ack_inc + len(data))
         self.protocol.setup_reciever(self)
 
+    def is_setup_teardown(self):
+        return self.syn or self.ack or self.fin
+
     def _get_packed_header(self, checksum, flags):
         return pack(self.header_format, self._ip_to_int(self.protocol.source_ip),
              self._ip_to_int(self.protocol.dest_ip), self.protocol.source_port,
-             self.protocol.dest_port, self.protocol.sequence_num,
-             self.protocol.ack_number, self.mws, self.datagram_size, checksum, flags)
+             self.protocol.dest_port, self.sequence_num,
+             self.ack_number, self.mws, self.datagram_size, checksum, flags)
 
     def _ip_to_int(self, ip_str):
         ip_str = '127.0.0.1' if ip_str == 'localhost' else ip_str

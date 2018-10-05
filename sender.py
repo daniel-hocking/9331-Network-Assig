@@ -42,9 +42,12 @@ input_args = {
 }
 
 count = 0
-stp_segment = StpSegment(filename, max_seg_size)
 stp_protocol = StpProtocol(dest_ip=receiver_host, dest_port=receiver_port, input_args=input_args)
 
+# 3-way handshake
+stp_protocol.send_setup_teardown(syn=True)
+stp_protocol.receive_setup_teardown(syn=True, ack=True)
+stp_protocol.send_setup_teardown(ack=True)
 while True:
     segment_data = stp_segment.read_segment()
     if not segment_data:

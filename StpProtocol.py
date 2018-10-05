@@ -3,6 +3,7 @@
 from socket import *
 from PldModule import PldModule
 from StpSegment import StpSegment
+from StpDatagram import StpDatagram
 
 class StpProtocol:
 
@@ -17,7 +18,7 @@ class StpProtocol:
         else:
             self.sender = True
             self.stp_segment = StpSegment(input_args['filename'], input_args['max_seg_size'])
-            self.pld_module = PldModule(input_args)
+            self.pld_module = PldModule(self, input_args)
             self.max_window_size = input_args['max_window_size']
             self.max_seg_size = input_args['max_seg_size']
             self.gamma = input_args['gamma']
@@ -46,19 +47,39 @@ class StpProtocol:
         self.sequence_num = seq_num
         self.ack_number = ack_num
 
-    def send_handshake(self, syn=False, ack=False, fin=False):
+    def send_setup_teardown(self, syn=False, ack=False, fin=False):
         # Used for connection establish/teardown requests
-        pass
+        stp_datagram = StpDatagram(self, syn=syn, ack=ack, fin=fin, mws=self.max_window_size)
+        self._send(stp_datagram)
 
-    def send(self):
+    def receive_setup_teardown(self, syn=False, ack=False, fin=False):
+        # Used to ensure that the correct response is received from setup/teardown requests
+        stp_datagram = self._receive()
+        if stp_datagram.syn == syn and stp_datagram.ack == ack and stp_datagram.fin == fin:
+            return True
+        else:
+            raise Exception('Incorrect handshake response received')
+
+    def send_data(self):
+        segment_data = self.stp_segment.read_segment()
+        if not segment_data:
+            return False
+        stp_datagram = StpDatagram(self, data=segment_data)
+        self._send(stp_datagram)
+        return True
+
+    def _send(self, stp_datagram: StpDatagram):
         # If receiver then just create datagram and send
         # If sender than create datagram, add to buffer, send via PLD module
-        pass
+        if self.sender:
+            self.buffer.append(stp_datagram)
+            self.pld_module.pld_send(stp_datagram)
 
-    def receive(self):
+    def _receive(self):
         # If receiver then check if it matches seq num and buffer if needed, send ack as apropriate
         # If sender then check if it matches ack num and resend as required, reset timer or continue sending data
-        pass
+        datagram = self.receive_datagram()
+        return StpDatagram(self, datagram=datagram)
 
     def send_datagram(self, datagram):
         print(f'sent {datagram}')
