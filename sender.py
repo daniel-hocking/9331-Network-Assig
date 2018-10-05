@@ -12,7 +12,7 @@ provided as arguments')
 receiver_host = sys.argv[1]
 receiver_port = int(sys.argv[2])
 filename = sys.argv[3]
-max_window_size = int(sys.argv[4]) if num_args >= 5 else 1
+max_window_size = int(sys.argv[4]) if num_args >= 5 else 1000
 max_seg_size = int(sys.argv[5]) if num_args >= 6 else 500
 gamma = int(sys.argv[6]) if num_args >= 7 else 4
 p_drop = float(sys.argv[7]) if num_args >= 8 else 0.1
@@ -48,17 +48,16 @@ stp_protocol = StpProtocol(dest_ip=receiver_host, dest_port=receiver_port, input
 stp_protocol.send_setup_teardown(syn=True)
 stp_protocol.receive_setup_teardown(syn=True, ack=True)
 stp_protocol.send_setup_teardown(ack=True)
-while True:
-    segment_data = stp_segment.read_segment()
-    if not segment_data:
-        break
-    datagram = stp_protocol.create_datagram(segment_data)
-    stp_protocol.send_datagram(datagram)
-    segment = stp_protocol.receive_datagram()
-    segment_processed = stp_protocol.process_datagram(segment)
-    print(f'received ack {segment_processed[0]}')
-    count += 1
 
-stp_protocol.send_datagram(stp_protocol.create_datagram(str.encode('done')))
+sender_success = True
+receiver_successs = True
+while sender_success:
+    sender_success = stp_protocol.sender_send_loop()
+    receiver_successs = stp_protocol.sender_receive_loop()
+    if stp_protocol.complete:
+        break
+
+stp_protocol.send_setup_teardown(fin=True)
+stp_protocol.receive_setup_teardown(fin=True, ack=True)
 
 print("done")

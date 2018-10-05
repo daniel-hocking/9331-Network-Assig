@@ -10,19 +10,29 @@ provided as argument')
 
 receiver_port = int(sys.argv[1])
 filename = sys.argv[2]
-max_seg_size = 500
 
-stp_segment = StpSegment(filename, max_seg_size, 'write')
-stp_protocol = StpProtocol(source_port=receiver_port, sender=False)
+stp_protocol = StpProtocol(source_port=receiver_port)
 
-count = 0
-while True:
-    segment = stp_protocol.receive_datagram()
-    segment_process = stp_protocol.process_datagram(segment)
-    print(f'received ack {segment_process[0]} checksum {segment_process[2]}')
-    if segment_process[1] == b'done':
+# 3-way handshake
+connection_received = False
+while not connection_received:
+    connection_received = stp_protocol.receive_setup_teardown(syn=True)
+    print("Connection loop")
+stp_protocol.send_setup_teardown(syn=True, ack=True)
+ack_received = False
+while not ack_received:
+    ack_received = stp_protocol.receive_setup_teardown(ack=True)
+    print("Ack loop")
+
+sender_success = True
+receiver_successs = True
+while sender_success:
+    sender_success = stp_protocol.receiver_send_loop()
+    receiver_successs = stp_protocol.receiver_receive_loop()
+    if stp_protocol.complete:
         break
-    stp_segment.write_segment(segment_process[1])
-    stp_protocol.send_datagram(stp_protocol.create_datagram(b''))
-    print(count)
-    count += 1
+
+stp_protocol.send_setup_teardown(fin=True, ack=True)
+stp_protocol.receive_setup_teardown(ack=True)
+
+print("done")

@@ -7,7 +7,7 @@ class StpDatagram:
 
     header_format = 'IIHHIIIHHH'
 
-    def __init__(self, protocol, datagram=None, data=None, mws=0,
+    def __init__(self, protocol, datagram=None, data=b'', mws=0,
                  syn=False, ack=False, fin=False, resend=False):
         self.header_size = calcsize(self.header_format)
         self.protocol = protocol
@@ -70,9 +70,11 @@ class StpDatagram:
         self.syn = flags[0]
         self.ack = flags[1]
         self.fin = flags[2]
+        self.sequence_num = self.header['seq_number']
+        self.ack_number = self.header['ack_number']
         self.data = data
         self.valid_datagram = self._verify_checksum(self.datagram, self.header['checksum'])
-        self.protocol.update_nums(header[5], header[4] + ack_inc + len(data))
+        self.protocol.update_nums(self.ack_number, self.sequence_num + ack_inc + len(data))
         self.protocol.setup_reciever(self)
 
     def is_setup_teardown(self):
