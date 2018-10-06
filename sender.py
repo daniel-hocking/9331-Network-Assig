@@ -62,6 +62,10 @@ receive_thread.join()
 print("receive thread ended")
 
 stp_protocol.send_setup_teardown(fin=True)
-stp_protocol.receive_setup_teardown(fin=True, ack=True)
+stp_protocol.receive_setup_teardown(ack=True)
+stp_protocol.receive_setup_teardown(fin=True)
+stp_protocol.send_setup_teardown(ack=True)
+
+stp_protocol.log.write_summary()
 
 print("done")

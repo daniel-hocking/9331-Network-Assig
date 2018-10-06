@@ -13,6 +13,7 @@ class StpDatagram:
         self.header_size = calcsize(self.header_format)
         self.protocol = protocol
         self.time_created = time.time()
+        self.is_dupe = False
         if datagram:
             self.datagram = datagram
             self._process_datagram()
@@ -56,7 +57,7 @@ class StpDatagram:
         data = self.datagram[self.header_size::]
         header = unpack(self.header_format, header)
         flags = self._decode_flags(header[-1])
-        ack_inc = 1 if flags[0] or flags[1] or flags[2] else 0
+        ack_inc = 1 if flags[0] or flags[2] else 0
         self.header = {
             'source_ip': self._int_to_ip(header[0]),
             'dest_ip': self._int_to_ip(header[1]),
@@ -76,8 +77,14 @@ class StpDatagram:
         self.ack_number = self.header['ack_number']
         self.data = data
         self.valid_datagram = self._verify_checksum(self.datagram, self.header['checksum'])
-        self.protocol.update_nums(self.ack_number, self.sequence_num + ack_inc + len(data))
+        self._update_if_next_segment(self.ack_number, self.sequence_num + ack_inc + len(data))
         self.protocol.setup_reciever(self)
+
+    def _update_if_next_segment(self, new_seq, new_ack):
+        if self.protocol.ack_number == self.sequence_num:
+            self.protocol.update_nums(new_seq, new_ack)
+        else:
+            self.is_dupe = True
 
     def is_setup_teardown(self):
         return self.syn or self.ack or self.fin

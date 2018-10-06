@@ -6,6 +6,7 @@ from threading import Lock
 from PldModule import PldModule
 from StpSegment import StpSegment
 from StpDatagram import StpDatagram
+from StpLog import StpLog
 
 class StpProtocol:
 
@@ -16,15 +17,19 @@ class StpProtocol:
         self.dest_port = dest_port
         self.ready = False
         self.complete = False
-        self.should_ack = False
+        self.should_ack = 0
+        self.prev_ack_sent = -1
+        self.prev_ack_rcv = -1
         self.lock = Lock()
         if input_args is None:
             self.sender = False
             self.max_window_size = 1024
+            self.log = StpLog(sender=False)
         else:
             self.sender = True
             self.stp_segment = StpSegment(input_args['filename'], input_args['max_seg_size'])
-            self.pld_module = PldModule(self, input_args)
+            self.log = StpLog(file_size=self.stp_segment.file_size)
+            self.pld_module = PldModule(self, self.log, input_args)
             self.max_window_size = input_args['max_window_size']
             self.max_seg_size = input_args['max_seg_size']
             self.gamma = input_args['gamma']
@@ -38,7 +43,7 @@ class StpProtocol:
 
     def _setup_connection(self):
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.socket.settimeout(1)
+        self.socket.settimeout(0.2)
         self.socket.bind(('', self.source_port))
         if not self.source_port:
             self.source_port = self.socket.getsockname()[1]
@@ -78,9 +83,7 @@ class StpProtocol:
                 current_time = time.time()
                 with self.lock:
                     for i in range(len(self.buffer)):
-                        print(f'buffer a {i}')
-                        if (current_time - self.buffer[i].time_created) > 1:
-                            print(f'buffer b {i}')
+                        if (current_time - self.buffer[i].time_created) > 0.3:
                             stp_datagram = self.buffer.pop()
                             stp_datagram.time_created = current_time
                             stp_datagram.resend = True
@@ -114,7 +117,6 @@ class StpProtocol:
                 break
             with self.lock:
                 for i in range(len(self.buffer) - 1, -1, -1):
-                    print(f'buffer {i} ack {stp_datagram.ack_number}')
                     if self.buffer[i].sequence_num < stp_datagram.ack_number:
                         self.buffer.pop(i)
 
@@ -122,9 +124,9 @@ class StpProtocol:
         # Whenever a packet received, then run this to send an ack
         # The value of the ack will depend on how many sequential packets have been received
         while True:
-            if self.should_ack:
+            if self.should_ack > 0:
                 self.send_setup_teardown(ack=True)
-                self.should_ack = False
+                self.should_ack -= 1
             if self.complete:
                 break
 
@@ -142,25 +144,38 @@ class StpProtocol:
             if stp_datagram.fin:
                 self.complete = True
                 break
-            self.stp_segment.write_segment(stp_datagram.data)
-            self.should_ack = True
+            if not stp_datagram.is_dupe:
+                self.stp_segment.write_segment(stp_datagram.data)
+            self.should_ack += 1
 
     def _send(self, stp_datagram: StpDatagram):
         # If receiver then just create datagram and send
         # If sender than create datagram, add to buffer, send via PLD module
         if self.sender:
-            self.buffer.append(stp_datagram)
+            if not stp_datagram.is_setup_teardown():
+                self.buffer.append(stp_datagram)
             self.pld_module.pld_send(stp_datagram)
         else:
+            if stp_datagram.ack_number == self.prev_ack_sent:
+                self.log.write_log_entry('snd/DA', stp_datagram, dup=True)
+            else:
+                self.log.write_log_entry('snd', stp_datagram)
+            self.prev_ack_sent = stp_datagram.ack_number
             self.send_datagram(stp_datagram.datagram)
 
     def _receive(self):
-        # If receiver then check if it matches seq num and buffer if needed, send ack as apropriate
+        # If receiver then check if it matches seq num and buffer if needed, send ack as appropriate
         # If sender then check if it matches ack num and resend as required, reset timer or continue sending data
         datagram = self.receive_datagram()
         if not datagram:
             return None
-        return StpDatagram(self, datagram=datagram)
+        stp_datagram = StpDatagram(self, datagram=datagram)
+        if self.sender and stp_datagram.ack_number == self.prev_ack_rcv:
+            self.log.write_log_entry('rcv/DA', stp_datagram, sent=False, dup=True)
+        else:
+            self.log.write_log_entry('rcv', stp_datagram, sent=False, dup=stp_datagram.is_dupe)
+        self.prev_ack_rcv = stp_datagram.ack_number
+        return stp_datagram
 
     def send_datagram(self, datagram):
         self.socket.sendto(datagram, (self.dest_ip, self.dest_port))

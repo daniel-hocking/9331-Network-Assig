@@ -20,10 +20,7 @@ while not connection_received:
     connection_received = stp_protocol.receive_setup_teardown(syn=True)
     print("Connection loop")
 stp_protocol.send_setup_teardown(syn=True, ack=True)
-ack_received = False
-while not ack_received:
-    ack_received = stp_protocol.receive_setup_teardown(ack=True)
-    print("Ack loop")
+stp_protocol.receive_setup_teardown(ack=True)
 
 send_thread = Thread(target=stp_protocol.receiver_send_loop)
 receive_thread = Thread(target=stp_protocol.receiver_receive_loop)
@@ -36,7 +33,10 @@ print("send thread ended")
 receive_thread.join()
 print("receive thread ended")
 
-stp_protocol.send_setup_teardown(fin=True, ack=True)
+stp_protocol.send_setup_teardown(ack=True)
+stp_protocol.send_setup_teardown(fin=True)
 stp_protocol.receive_setup_teardown(ack=True)
+
+stp_protocol.log.write_summary()
 
 print("done")
