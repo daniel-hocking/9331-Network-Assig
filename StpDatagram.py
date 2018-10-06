@@ -2,6 +2,7 @@
 
 from struct import *
 import ipaddress
+import time
 
 class StpDatagram:
 
@@ -11,6 +12,7 @@ class StpDatagram:
                  syn=False, ack=False, fin=False, resend=False):
         self.header_size = calcsize(self.header_format)
         self.protocol = protocol
+        self.time_created = time.time()
         if datagram:
             self.datagram = datagram
             self._process_datagram()

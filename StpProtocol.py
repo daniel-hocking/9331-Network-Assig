@@ -1,6 +1,8 @@
 #!/usr/bin/python3.6
 
+import time
 from socket import *
+from threading import Lock
 from PldModule import PldModule
 from StpSegment import StpSegment
 from StpDatagram import StpDatagram
@@ -15,6 +17,7 @@ class StpProtocol:
         self.ready = False
         self.complete = False
         self.should_ack = False
+        self.lock = Lock()
         if input_args is None:
             self.sender = False
             self.max_window_size = 1024
@@ -70,18 +73,28 @@ class StpProtocol:
         # If no data and all ack'd then send teardown packets
         # If timeout not started then start
         # If have data and window space then send datagram to PLD
-        if len(self.buffer):
-            self._send(self.buffer[0])
-        else:
-            segment_data = self.stp_segment.read_segment()
-            if not segment_data:
-                if len(self.buffer):
-                    return True
-                return False
-            stp_datagram = StpDatagram(self, data=segment_data)
-            self._send(stp_datagram)
-
-        return True
+        while True:
+            if len(self.buffer):
+                current_time = time.time()
+                with self.lock:
+                    for i in range(len(self.buffer)):
+                        print(f'buffer a {i}')
+                        if (current_time - self.buffer[i].time_created) > 1:
+                            print(f'buffer b {i}')
+                            stp_datagram = self.buffer.pop()
+                            stp_datagram.time_created = current_time
+                            stp_datagram.resend = True
+                            self._send(stp_datagram)
+                            break
+            else:
+                segment_data = self.stp_segment.read_segment()
+                if not segment_data:
+                    if len(self.buffer):
+                        continue
+                    self.complete = True
+                    break
+                stp_datagram = StpDatagram(self, data=segment_data)
+                self._send(stp_datagram)
 
     def sender_receive_loop(self):
         # Wait for a packet to arrive
@@ -91,25 +104,29 @@ class StpProtocol:
         # If there are packets in buffer that have seq < ack can remove from buffer
         # Also update the window if this happens: reduce active data count,
         # increase send base, and reset timer
-        stp_datagram = self._receive()
-        if not stp_datagram:
-            return False
-        if stp_datagram.fin:
-            self.complete = True
-            return True
-        for i in range(len(self.buffer) - 1, -1, -1):
-            print(f'buffer {i} ack {stp_datagram.ack_number}')
-            if self.buffer[i].sequence_num < stp_datagram.ack_number:
-                self.buffer.pop(i)
-        return True
+        while True:
+            stp_datagram = self._receive()
+            if self.complete:
+                break
+            if not stp_datagram:
+                continue
+            if stp_datagram.fin:
+                break
+            with self.lock:
+                for i in range(len(self.buffer) - 1, -1, -1):
+                    print(f'buffer {i} ack {stp_datagram.ack_number}')
+                    if self.buffer[i].sequence_num < stp_datagram.ack_number:
+                        self.buffer.pop(i)
 
     def receiver_send_loop(self):
         # Whenever a packet received, then run this to send an ack
         # The value of the ack will depend on how many sequential packets have been received
-        if self.should_ack:
-            self.send_setup_teardown(ack=True)
-            self.should_ack = False
-        return True
+        while True:
+            if self.should_ack:
+                self.send_setup_teardown(ack=True)
+                self.should_ack = False
+            if self.complete:
+                break
 
     def receiver_receive_loop(self):
         # Wait for a packet to arrive
@@ -118,15 +135,15 @@ class StpProtocol:
         # Then save to file and send ack + len
         # If not expected sequence number then send ack and save to buffer
         # If corrupted then no ack
-        stp_datagram = self._receive()
-        if not stp_datagram:
-            return False
-        if stp_datagram.fin:
-            self.complete = True
-            return True
-        self.stp_segment.write_segment(stp_datagram.data)
-        self.should_ack = True
-        return True
+        while True:
+            stp_datagram = self._receive()
+            if not stp_datagram:
+                continue
+            if stp_datagram.fin:
+                self.complete = True
+                break
+            self.stp_segment.write_segment(stp_datagram.data)
+            self.should_ack = True
 
     def _send(self, stp_datagram: StpDatagram):
         # If receiver then just create datagram and send

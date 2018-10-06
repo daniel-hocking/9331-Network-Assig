@@ -1,6 +1,7 @@
 #!/usr/bin/python3.6
 
 import sys
+from threading import Thread
 from StpProtocol import StpProtocol
 
 num_args = len(sys.argv)
@@ -49,13 +50,16 @@ stp_protocol.send_setup_teardown(syn=True)
 stp_protocol.receive_setup_teardown(syn=True, ack=True)
 stp_protocol.send_setup_teardown(ack=True)
 
-sender_success = True
-receiver_successs = True
-while sender_success:
-    sender_success = stp_protocol.sender_send_loop()
-    receiver_successs = stp_protocol.sender_receive_loop()
-    if stp_protocol.complete:
-        break
+send_thread = Thread(target=stp_protocol.sender_send_loop)
+receive_thread = Thread(target=stp_protocol.sender_receive_loop)
+
+send_thread.start()
+receive_thread.start()
+
+send_thread.join()
+print("send thread ended")
+receive_thread.join()
+print("receive thread ended")
 
 stp_protocol.send_setup_teardown(fin=True)
 stp_protocol.receive_setup_teardown(fin=True, ack=True)
