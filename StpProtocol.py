@@ -2,11 +2,13 @@
 
 import time
 from socket import *
+from collections import deque
 from threading import Lock
 from PldModule import PldModule
 from StpSegment import StpSegment
 from StpDatagram import StpDatagram
 from StpLog import StpLog
+from RttModule import RttModule
 
 class StpProtocol:
 
@@ -24,6 +26,7 @@ class StpProtocol:
         if input_args is None:
             self.sender = False
             self.max_window_size = 1024
+            self.ack_queue = deque()
             self.log = StpLog(sender=False)
         else:
             self.sender = True
@@ -33,6 +36,7 @@ class StpProtocol:
             self.max_window_size = input_args['max_window_size']
             self.max_seg_size = input_args['max_seg_size']
             self.gamma = input_args['gamma']
+            self.rtt_module = RttModule(self.gamma)
         self.sequence_num = 0
         self.ack_number = 0
         self.buffer = list()
@@ -57,9 +61,10 @@ class StpProtocol:
         self.sequence_num = seq_num
         self.ack_number = ack_num
 
-    def send_setup_teardown(self, syn=False, ack=False, fin=False):
+    def send_setup_teardown(self, syn=False, ack=False, fin=False, resend=False, trigger_seq=0):
         # Used for connection establish/teardown requests
-        stp_datagram = StpDatagram(self, syn=syn, ack=ack, fin=fin, mws=self.max_window_size)
+        stp_datagram = StpDatagram(self, syn=syn, ack=ack, fin=fin, resend=resend,
+                                   trigger_seq=trigger_seq, mws=self.max_window_size)
         self._send(stp_datagram)
 
     def receive_setup_teardown(self, syn=False, ack=False, fin=False):
@@ -83,7 +88,7 @@ class StpProtocol:
                 current_time = time.time()
                 with self.lock:
                     for i in range(len(self.buffer)):
-                        if (current_time - self.buffer[i].time_created) > 0.3:
+                        if (current_time - self.buffer[i].time_created) > self.rtt_module.get_timeout():
                             stp_datagram = self.buffer.pop()
                             stp_datagram.time_created = current_time
                             stp_datagram.resend = True
@@ -116,17 +121,24 @@ class StpProtocol:
             if stp_datagram.fin:
                 break
             with self.lock:
+                current_time = time.time()
                 for i in range(len(self.buffer) - 1, -1, -1):
                     if self.buffer[i].sequence_num < stp_datagram.ack_number:
-                        self.buffer.pop(i)
+                        buffer_datagram = self.buffer.pop(i)
+                        if stp_datagram.trigger_seq == buffer_datagram.sequence_num:
+                            rtt = current_time - buffer_datagram.time_created
+                            new_timeout = self.rtt_module.updated_timeout(rtt)
+                            print(f'seq_num {stp_datagram.trigger_seq} rtt {rtt} timeout {new_timeout}')
 
     def receiver_send_loop(self):
         # Whenever a packet received, then run this to send an ack
         # The value of the ack will depend on how many sequential packets have been received
         while True:
-            if self.should_ack > 0:
-                self.send_setup_teardown(ack=True)
-                self.should_ack -= 1
+            with self.lock:
+                while len(self.ack_queue) > 0:
+                    stp_datagram = self.ack_queue.pop()
+                    self.send_setup_teardown(ack=True, resend=stp_datagram.resend,
+                                             trigger_seq=stp_datagram.sequence_num)
             if self.complete:
                 break
 
@@ -146,7 +158,8 @@ class StpProtocol:
                 break
             if not stp_datagram.is_dupe:
                 self.stp_segment.write_segment(stp_datagram.data)
-            self.should_ack += 1
+            with self.lock:
+                self.ack_queue.appendleft(stp_datagram)
 
     def _send(self, stp_datagram: StpDatagram):
         # If receiver then just create datagram and send
@@ -170,7 +183,10 @@ class StpProtocol:
         if not datagram:
             return None
         stp_datagram = StpDatagram(self, datagram=datagram)
-        if self.sender and stp_datagram.ack_number == self.prev_ack_rcv:
+        if not stp_datagram.valid_datagram:
+            self.log.write_log_entry('rcv/corr', stp_datagram, sent=False, err=True)
+            return None
+        elif self.sender and stp_datagram.ack_number == self.prev_ack_rcv:
             self.log.write_log_entry('rcv/DA', stp_datagram, sent=False, dup=True)
         else:
             self.log.write_log_entry('rcv', stp_datagram, sent=False, dup=stp_datagram.is_dupe)
