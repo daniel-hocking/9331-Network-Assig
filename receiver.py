@@ -16,9 +16,7 @@ stp_protocol = StpProtocol(source_port=receiver_port)
 
 # 3-way handshake
 connection_received = False
-while not connection_received:
-    connection_received = stp_protocol.receive_setup_teardown(syn=True)
-    print("Connection loop")
+stp_protocol.receive_setup_teardown(syn=True)
 stp_protocol.send_setup_teardown(syn=True, ack=True)
 stp_protocol.receive_setup_teardown(ack=True)
 

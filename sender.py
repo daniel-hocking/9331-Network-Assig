@@ -13,8 +13,8 @@ provided as arguments')
 receiver_host = sys.argv[1]
 receiver_port = int(sys.argv[2])
 filename = sys.argv[3]
-max_window_size = int(sys.argv[4]) if num_args >= 5 else 1000
-max_seg_size = int(sys.argv[5]) if num_args >= 6 else 500
+max_window_size = int(sys.argv[4]) if num_args >= 5 else 5000
+max_seg_size = int(sys.argv[5]) if num_args >= 6 else 1000
 gamma = int(sys.argv[6]) if num_args >= 7 else 4
 p_drop = float(sys.argv[7]) if num_args >= 8 else 0.1
 p_dupe = float(sys.argv[8]) if num_args >= 9 else 0.1

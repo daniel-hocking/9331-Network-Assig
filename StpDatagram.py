@@ -15,6 +15,8 @@ class StpDatagram:
         self.protocol = protocol
         self.time_created = time.time()
         self.is_dupe = False
+        self.should_buffer = False
+        self.fast_retransmit = False
         if datagram:
             self.datagram = datagram
             self._process_datagram()
@@ -55,12 +57,14 @@ class StpDatagram:
         }
         return header + self.data
 
+    def recreate_datagram(self):
+        self.datagram = self._create_datagram()
+
     def _process_datagram(self):
         header = self.datagram[:self.header_size:]
         data = self.datagram[self.header_size::]
         header = unpack(self.header_format, header)
         flags = self._decode_flags(header[-1])
-        ack_inc = 1 if flags[0] or flags[2] else 0
         self.header = {
             'source_ip': self._int_to_ip(header[0]),
             'dest_ip': self._int_to_ip(header[1]),
@@ -84,14 +88,21 @@ class StpDatagram:
         self.data = data
         self.valid_datagram = self._verify_checksum(self.datagram, self.header['checksum'])
         if self.valid_datagram:
-            self._update_if_next_segment(self.ack_number, self.sequence_num + ack_inc + len(data))
+            self.update_if_next_segment()
         self.protocol.setup_reciever(self)
 
-    def _update_if_next_segment(self, new_seq, new_ack):
+    def update_if_next_segment(self):
         if self.protocol.ack_number == self.sequence_num:
-            self.protocol.update_nums(new_seq, new_ack)
-        else:
+            ack_inc = 1 if self.syn or self.fin else 0
+            self.protocol.seen_datagram.add(self.sequence_num)
+            self.protocol.update_nums(self.ack_number, self.sequence_num + ack_inc + len(self.data))
+            return True
+        elif self.sequence_num in self.protocol.seen_datagram:
             self.is_dupe = True
+        else:
+            self.protocol.seen_datagram.add(self.sequence_num)
+            self.should_buffer = True
+        return False
 
     def is_setup_teardown(self):
         return self.syn or self.ack or self.fin
@@ -121,7 +132,7 @@ class StpDatagram:
         syn = True if flags & 1 else False
         ack = True if flags & 2 else False
         fin = True if flags & 4 else False
-        resend = True if flags & 4 else False
+        resend = True if flags & 8 else False
         return syn, ack, fin, resend
 
     def _byte_parity(self, b):

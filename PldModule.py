@@ -25,20 +25,25 @@ class PldModule:
             self.protocol.send_datagram(stp_datagram.datagram)
         # Segment should be dropped
         elif random() < self.p_drop:
-            self.log.write_log_entry('drop', stp_datagram, pld=True, drop=True)
+            self.log.write_log_entry('drop', stp_datagram, pld=True, drop=True,
+                                     fast=stp_datagram.fast_retransmit)
             return
         # Segment should be duplicated
         elif random() < self.p_dupe:
-            self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True, timeout=stp_datagram.resend)
+            self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True,
+                                     timeout=stp_datagram.resend, fast=stp_datagram.fast_retransmit)
             self.protocol.send_datagram(stp_datagram.datagram)
-            self.log.write_log_entry('snd/dup', stp_datagram, pld=True, dup=True)
+            self.log.write_log_entry('snd/dup', stp_datagram, pld=True, dup=True,
+                                     fast=stp_datagram.fast_retransmit)
             self.protocol.send_datagram(stp_datagram.datagram)
             return
         # Segment should be corrupted
         elif random() < self.p_corrupt:
             stp_datagram.corrupt_datagram()
-            self.log.write_log_entry('snd/corr' + rxt, stp_datagram, pld=True, corr=True, timeout=stp_datagram.resend)
+            self.log.write_log_entry('snd/corr' + rxt, stp_datagram, pld=True, corr=True,
+                                     timeout=stp_datagram.resend, fast=stp_datagram.fast_retransmit)
             self.protocol.send_datagram(stp_datagram.corrupted_datagram)
         else:
-            self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True, timeout=stp_datagram.resend)
+            self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True,
+                                     timeout=stp_datagram.resend, fast=stp_datagram.fast_retransmit)
             self.protocol.send_datagram(stp_datagram.datagram)
