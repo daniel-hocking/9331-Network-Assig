@@ -117,6 +117,7 @@ class StpProtocol:
                     if not self.timer:
                         self.timer = time.time()
                     self._send(stp_datagram)
+            time.sleep(0.001)
 
     def sender_receive_loop(self):
         # Wait for a packet to arrive
@@ -138,14 +139,15 @@ class StpProtocol:
                 current_time = time.time()
                 new_buffer = deque()
                 for i in range(len(self.buffer)):
-                    if self.buffer[i].sequence_num < stp_datagram.ack_number:
-                        buffer_datagram = self.buffer[i]
-                        if stp_datagram.trigger_seq == buffer_datagram.sequence_num and not stp_datagram.resend:
-                            rtt = current_time - buffer_datagram.time_created
-                            new_timeout = self.rtt_module.updated_timeout(rtt)
-                            print(f'seq_num {stp_datagram.trigger_seq} rtt {rtt} timeout {new_timeout}')
+                    buffer_datagram = self.buffer[i]
+                    if stp_datagram.trigger_seq == buffer_datagram.sequence_num and not stp_datagram.resend:
+                        rtt = current_time - buffer_datagram.time_created
+                        new_timeout = self.rtt_module.updated_timeout(rtt)
+                        print(f'seq_num {stp_datagram.trigger_seq} rtt {rtt} timeout {new_timeout}')
                     else:
-                        new_buffer.append(self.buffer[i])
+                        print(f'did not update timeout trigger {stp_datagram.trigger_seq} seq_num {buffer_datagram.sequence_num} resend {stp_datagram.resend}')
+                    if buffer_datagram.sequence_num >= stp_datagram.ack_number:
+                        new_buffer.append(buffer_datagram)
                 if len(self.buffer) != len(new_buffer):
                     if len(new_buffer) > 0:
                         self.timer = current_time
@@ -156,14 +158,10 @@ class StpProtocol:
     def receiver_send_loop(self):
         # Whenever a packet received, then run this to send an ack
         # The value of the ack will depend on how many sequential packets have been received
-        while True:
-            with self.lock:
-                while len(self.ack_queue) > 0:
-                    stp_datagram = self.ack_queue.pop()
-                    self.send_setup_teardown(ack=True, resend=stp_datagram.resend,
-                                             trigger_seq=stp_datagram.sequence_num)
-            if self.complete:
-                break
+        while len(self.ack_queue) > 0:
+            stp_datagram = self.ack_queue.pop()
+            self.send_setup_teardown(ack=True, resend=stp_datagram.resend,
+                                     trigger_seq=stp_datagram.sequence_num)
 
     def receiver_receive_loop(self):
         # Wait for a packet to arrive
@@ -177,7 +175,6 @@ class StpProtocol:
             if not stp_datagram:
                 continue
             if stp_datagram.fin:
-                self.complete = True
                 break
             if stp_datagram.should_buffer:
                 self.buffer.append(stp_datagram)
@@ -195,8 +192,8 @@ class StpProtocol:
                         in_buffer.add(buffer_segment.sequence_num)
                         new_buffer.append(buffer_segment)
                 self.buffer = new_buffer
-            with self.lock:
-                self.ack_queue.appendleft(stp_datagram)
+            self.ack_queue.appendleft(stp_datagram)
+            self.receiver_send_loop()
 
     def _send(self, stp_datagram: StpDatagram):
         # If receiver then just create datagram and send

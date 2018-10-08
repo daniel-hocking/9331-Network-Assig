@@ -155,7 +155,7 @@ class StpDatagram:
         return False
 
     def corrupt_datagram(self):
-        corrupt_byte_index = randint(1, self.datagram_size - 1)
+        corrupt_byte_index = randint(self.header_size, self.datagram_size - 1)
         corrupt_byte = self.datagram[corrupt_byte_index]
         before_bye = self.datagram[:corrupt_byte_index:]
         after_byte = self.datagram[corrupt_byte_index + 1::]
