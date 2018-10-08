@@ -90,6 +90,7 @@ class StpProtocol:
         # If no data and all ack'd then send teardown packets
         # If have data and window space then send datagram to PLD
         while True:
+            self.pld_module.send_delayed()
             with self.lock:
                 current_time = time.time()
                 if len(self.buffer) > 0 and \
