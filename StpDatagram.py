@@ -17,10 +17,9 @@ class StpDatagram:
     Trigger sequence number
     Maximum window size
     Datagram size
-    Checksum
     Flags
     '''
-    header_format = 'IIIIHHH'
+    header_format = 'IIIIHH'
 
     def __init__(self, protocol, datagram=None, data=b'', mws=0,
                  syn=False, ack=False, fin=False, resend=False, trigger_seq=0):
@@ -51,23 +50,17 @@ class StpDatagram:
         self.datagram_size = self.header_size + len(self.data)
         flags = self._encode_flags()
         print(f'Creating datagram seq {self.sequence_num} and ack {self.ack_number}')
-        '''
-        The checksum is just a parity bit, either even or odd but I'm using 0 or 3
-        to store it as these values won't effect the overall parity, like using 0 or 1 would
-        '''
-        checksum = 0
-        header = self._get_packed_header(checksum, flags)
+        header = self._get_packed_header(flags)
         pseudo_datagram = header + self.data
         if self._find_checksum(pseudo_datagram):
-            checksum = 3
-            header = self._get_packed_header(checksum, flags)
+            flags = self._set_checksum(flags)
+            header = self._get_packed_header(flags)
         self.header = {
             'seq_number': self.sequence_num,
             'ack_number': self.ack_number,
             'trigger_seq': self.trigger_seq,
             'mws': self.mws,
             'datagram_size': self.datagram_size,
-            'checksum': checksum,
             'flags': flags,
         }
         return header + self.data
@@ -88,7 +81,7 @@ class StpDatagram:
             'trigger_seq': header[2],
             'mws': header[3],
             'datagram_size': header[4],
-            'checksum': header[5],
+            'checksum': flags[4],
             'flags': flags,
         }
         self.syn = flags[0]
@@ -126,9 +119,9 @@ class StpDatagram:
     def is_setup_teardown(self):
         return self.syn or self.ack or self.fin
 
-    def _get_packed_header(self, checksum, flags):
+    def _get_packed_header(self, flags):
         return pack(self.header_format, self.sequence_num, self.ack_number,
-                self.trigger_seq, self.mws, self.datagram_size, checksum, flags)
+                self.trigger_seq, self.mws, self.datagram_size, flags)
 
     '''
     Previously the ip and port were included in the header, to store the header compactly it
@@ -150,13 +143,20 @@ class StpDatagram:
         flags = flags ^ 8 if self.resend else flags
         return flags
 
+    def _set_checksum(self, flags):
+        flags = flags ^ 16
+        flags = flags ^ 32
+        return flags
+
+
     # Flags recovered using bitwise and to find which bits are set
     def _decode_flags(self, flags):
         syn = True if flags & 1 else False
         ack = True if flags & 2 else False
         fin = True if flags & 4 else False
         resend = True if flags & 8 else False
-        return syn, ack, fin, resend
+        checksum = True if (flags & 16 and flags & 32) else False
+        return syn, ack, fin, resend, checksum
 
     '''
     The idea behind this function for calculating the parity of a byte is from:
