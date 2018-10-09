@@ -2,6 +2,10 @@
 
 import time
 
+'''
+The StpLog class is used to log segments that have been sent or received
+and also to keep track of summary stats
+'''
 class StpLog:
 
     '''

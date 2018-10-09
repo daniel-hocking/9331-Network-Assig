@@ -1,8 +1,11 @@
 #!/usr/bin/python3.6
 
 import os
-import math
 
+'''
+The StpSegment class is used to read a single segments worth of data from the input file
+or write a single segments worth of data to the output file
+'''
 class StpSegment:
 
     def __init__(self, filename, max_seg_size, mode='read'):
@@ -10,7 +13,6 @@ class StpSegment:
         self.max_seg_size = max_seg_size
         self.write_mode = True if mode == 'write' else False
         self._file_setup()
-        self.current_segment = 0
 
     def __del__(self):
         self.file.close()
@@ -19,12 +21,10 @@ class StpSegment:
         mode = 'wb' if self.write_mode else 'rb'
         self.file = open(self.file_name, mode)
         self.file_size = os.path.getsize(self.file.name)
-        self.num_segments = math.ceil(self.file_size / self.max_seg_size)
 
     def read_segment(self):
         if self.write_mode:
             raise Exception('Read mode not set, can\'t read data from file')
-        self.current_segment += 1
         return self.file.read(self.max_seg_size)
 
     def write_segment(self, data):

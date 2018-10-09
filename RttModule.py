@@ -1,5 +1,9 @@
 #!/usr/bin/python3.6
 
+'''
+The RttModule class is used to update the timeout interval based on sample RTT
+values that are provided to it
+'''
 class RttModule:
 
     '''
