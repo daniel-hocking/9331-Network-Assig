@@ -16,7 +16,7 @@ and receiving and managing access to the other classes
 '''
 class StpProtocol:
 
-    def __init__(self, dest_ip='', source_port=0, dest_port=0, input_args=None):
+    def __init__(self, dest_ip='', source_port=0, dest_port=0, input_args=None, filename=''):
         self.dest_ip = dest_ip
         self.source_port = source_port
         self.dest_port = dest_port
@@ -31,6 +31,7 @@ class StpProtocol:
             self.sender = False
             self.max_window_size = 1024
             self.log = StpLog(sender=False)
+            self.filename = filename
         else:
             self.sender = True
             self.stp_segment = StpSegment(input_args['filename'], input_args['max_seg_size'])
@@ -61,7 +62,7 @@ class StpProtocol:
     def setup_reciever(self, datagram):
         if self.sender == False and datagram.syn:
             self.max_window_size = datagram.header['mws']
-            self.stp_segment = StpSegment('test_r.pdf', self.max_window_size, mode='write')
+            self.stp_segment = StpSegment(self.filename, self.max_window_size, mode='write')
 
     def update_nums(self, seq_num, ack_num):
         if self.sender:

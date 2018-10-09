@@ -12,7 +12,7 @@ receiver_port = int(sys.argv[1])
 filename = sys.argv[2]
 
 # Setup StpProtocol object, this handles everything related to the running of the protocol
-stp_protocol = StpProtocol(source_port=receiver_port)
+stp_protocol = StpProtocol(source_port=receiver_port, filename=filename)
 
 # 3-way handshake
 stp_protocol.receive_setup_teardown(syn=True)
