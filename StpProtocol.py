@@ -32,14 +32,15 @@ class StpProtocol:
             self.max_window_size = 1024
             self.log = StpLog(sender=False)
             self.filename = filename
+            self.stp_segment = StpSegment(self.filename, mode='write')
         else:
             self.sender = True
-            self.stp_segment = StpSegment(input_args['filename'], input_args['max_seg_size'])
-            self.log = StpLog(file_size=self.stp_segment.file_size)
-            self.pld_module = PldModule(self, self.log, input_args)
             self.max_window_size = input_args['max_window_size']
             self.max_seg_size = input_args['max_seg_size']
             self.rtt_module = RttModule(input_args['gamma'])
+            self.stp_segment = StpSegment(input_args['filename'], max_seg_size=self.max_seg_size)
+            self.log = StpLog(file_size=self.stp_segment.file_size)
+            self.pld_module = PldModule(self, self.log, input_args)
         self.sequence_num = 0
         self.ack_number = 0
         self.send_base = 0
@@ -62,7 +63,6 @@ class StpProtocol:
     def setup_reciever(self, datagram):
         if self.sender == False and datagram.syn:
             self.max_window_size = datagram.header['mws']
-            self.stp_segment = StpSegment(self.filename, self.max_window_size, mode='write')
 
     def update_nums(self, seq_num, ack_num):
         if self.sender:

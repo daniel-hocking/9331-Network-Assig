@@ -8,7 +8,7 @@ or write a single segments worth of data to the output file
 '''
 class StpSegment:
 
-    def __init__(self, filename, max_seg_size, mode='read'):
+    def __init__(self, filename, max_seg_size=0, mode='read'):
         self.file_name = filename
         self.max_seg_size = max_seg_size
         self.write_mode = True if mode == 'write' else False

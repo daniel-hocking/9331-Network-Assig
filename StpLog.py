@@ -76,7 +76,7 @@ class StpLog:
             self.total_reordered += 1 if rord else 0
             self.total_duplicated += 1 if sent and dup else 0
             self.total_delayed += 1 if dely else 0
-            self.total_timeout += 1 if timeout else 0
+            self.total_timeout += 1 if timeout and not fast else 0
             self.total_fast_retrans += 1 if fast else 0
             self.total_dupe_recv += 1 if not sent and dup else 0
         else:

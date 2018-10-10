@@ -1,6 +1,7 @@
 #!/usr/bin/python3.6
 
 import time
+from copy import copy
 from random import seed, random, uniform
 from StpDatagram import StpDatagram
 
@@ -33,8 +34,8 @@ class PldModule:
             self.send_datagram(stp_datagram.datagram)
         # Segment should be dropped
         elif random() < self.p_drop:
-            self.log.write_log_entry('drop', stp_datagram, pld=True, drop=True,
-                                     fast=stp_datagram.fast_retransmit)
+            self.log.write_log_entry('drop' + rxt, stp_datagram, pld=True, drop=True,
+                                     timeout=stp_datagram.resend, fast=stp_datagram.fast_retransmit)
         # Segment should be duplicated
         elif random() < self.p_dupe:
             self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True,
@@ -52,7 +53,7 @@ class PldModule:
         # Segment should be reordered
         elif random() < self.p_order:
             if self.reordered_packet is None:
-                self.reordered_packet = stp_datagram
+                self.reordered_packet = copy(stp_datagram)
                 self.reordered_count = self.max_order
             else:
                 self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True,
@@ -61,7 +62,7 @@ class PldModule:
         # Segment should be delayed
         elif random() < self.p_delay:
             delay_until = uniform(0, self.max_delay) + time.time()
-            self.delayed_packet.append((delay_until, stp_datagram))
+            self.delayed_packet.append((delay_until, copy(stp_datagram)))
         else:
             self.log.write_log_entry('snd' + rxt, stp_datagram, pld=True,
                                      timeout=stp_datagram.resend, fast=stp_datagram.fast_retransmit)

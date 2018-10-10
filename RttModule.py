@@ -14,6 +14,7 @@ class RttModule:
     def __init__(self, gamma):
         self.estimated_rtt = 0.5
         self.dev_rtt = 0.25
+        self.min_rtt = 0.01
         self.gamma = gamma
         self.timeout_interval = self.estimated_rtt + (self.gamma * self.dev_rtt)
 
@@ -21,6 +22,7 @@ class RttModule:
         self.estimated_rtt = (0.875 * self.estimated_rtt) + (0.125 * sample_rtt)
         self.dev_rtt = (0.75 * self.dev_rtt) + (0.25 * abs(sample_rtt - self.estimated_rtt))
         self.timeout_interval = self.estimated_rtt + (self.gamma * self.dev_rtt)
+        self.timeout_interval = max(self.timeout_interval, self.min_rtt)
         return self.timeout_interval
 
     def get_timeout(self):
