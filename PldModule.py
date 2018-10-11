@@ -21,7 +21,7 @@ class PldModule:
         self.p_order = input_args['p_order']
         self.max_order = input_args['max_order']
         self.p_delay = input_args['p_delay']
-        self.max_delay = input_args['max_delay']
+        self.max_delay = input_args['max_delay'] / 1000
         self.reordered_packet = None
         self.reordered_count = 0
         self.delayed_packet = list()
@@ -86,7 +86,7 @@ class PldModule:
         new_delayed = list()
         current_time = time.time()
         for packet in self.delayed_packet:
-            if packet[0] >= current_time:
+            if current_time >= packet[0]:
                 rxt = '/RXT' if packet[1].resend else ''
                 self.log.write_log_entry('snd/dely' + rxt, packet[1], pld=True, dely=True,
                                          timeout=packet[1].resend, fast=packet[1].fast_retransmit)

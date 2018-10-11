@@ -213,11 +213,12 @@ class StpProtocol:
                     self.buffer.append(stp_datagram)
             self.pld_module.pld_send(stp_datagram)
         else:
-            if stp_datagram.ack_number == self.prev_ack_sent:
+            if stp_datagram.ack and stp_datagram.ack_number == self.prev_ack_sent:
                 self.log.write_log_entry('snd/DA', stp_datagram, dup=True)
             else:
                 self.log.write_log_entry('snd', stp_datagram)
-            self.prev_ack_sent = stp_datagram.ack_number
+            if stp_datagram.ack:
+                self.prev_ack_sent = stp_datagram.ack_number
             self.send_datagram(stp_datagram.datagram)
 
     def _receive(self):
@@ -231,13 +232,14 @@ class StpProtocol:
             self.log.write_log_entry('rcv/corr', stp_datagram, sent=False, err=True)
             self.fast_retransmit = 0
             return None
-        elif self.sender and stp_datagram.ack_number == self.prev_ack_rcv:
+        elif self.sender and stp_datagram.ack and stp_datagram.ack_number == self.prev_ack_rcv:
             self.log.write_log_entry('rcv/DA', stp_datagram, sent=False, dup=True)
             self.fast_retransmit += 1
         else:
             self.log.write_log_entry('rcv', stp_datagram, sent=False, dup=stp_datagram.is_dupe)
             self.fast_retransmit = 0
-        self.prev_ack_rcv = stp_datagram.ack_number
+        if stp_datagram.ack:
+            self.prev_ack_rcv = stp_datagram.ack_number
         return stp_datagram
 
     def send_datagram(self, datagram):
