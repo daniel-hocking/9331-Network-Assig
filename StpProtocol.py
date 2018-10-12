@@ -141,6 +141,7 @@ class StpProtocol:
             # If a fin segment is received then end (this should never happen)
             if stp_datagram.fin:
                 break
+            print(f'Receiver has acknowledged {self.send_base} out of {self.stp_segment.file_size} bytes')
             # Get a lock as the buffer might otherwise be updated by the sending thread
             with self.lock:
                 current_time = time.time()
@@ -152,7 +153,7 @@ class StpProtocol:
                     if stp_datagram.trigger_seq == buffer_datagram.sequence_num and not stp_datagram.resend:
                         rtt = current_time - buffer_datagram.time_created
                         new_timeout = self.rtt_module.updated_timeout(rtt)
-                        print(f'seq_num {stp_datagram.trigger_seq} rtt {rtt} timeout {new_timeout}')
+                        #print(f'seq_num {stp_datagram.trigger_seq} rtt {rtt} timeout {new_timeout}')
                     # If buffer item still needed then add it back into buffer
                     if buffer_datagram.sequence_num >= stp_datagram.ack_number:
                         new_buffer.append(buffer_datagram)

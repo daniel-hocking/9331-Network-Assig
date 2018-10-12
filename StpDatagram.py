@@ -49,7 +49,7 @@ class StpDatagram:
     def _create_datagram(self):
         self.datagram_size = self.header_size + len(self.data)
         flags = self._encode_flags()
-        print(f'Creating datagram seq {self.sequence_num} and ack {self.ack_number}')
+        #print(f'Creating datagram seq {self.sequence_num} and ack {self.ack_number}')
         header = self._get_packed_header(flags)
         pseudo_datagram = header + self.data
         if self._find_checksum(pseudo_datagram):

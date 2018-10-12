@@ -51,4 +51,5 @@ stp_protocol.send_setup_teardown(ack=True)
 
 # Write the final summary in the log
 stp_protocol.log.write_summary()
+print('Completed with the following input arguments:')
 print(input_args)
