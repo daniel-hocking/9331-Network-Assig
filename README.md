@@ -6,7 +6,7 @@ To run first navigate into the folder and run the following command:
 
     python receiver.py [receiver_port] [file_name_out]
     
-The using a separate terminal window run the following command (this can take place on another computer):
+Then using a separate terminal window run the following command (this can take place on another computer):
 
     python sender.py [receiver_host_ip] [receiver_port] [file_name_in]
     
